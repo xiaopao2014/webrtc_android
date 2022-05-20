@@ -13,6 +13,7 @@ import com.dds.webrtclib.ws.JavaWebSocket;
 
 import org.webrtc.EglBase;
 import org.webrtc.IceCandidate;
+import org.webrtc.VideoCapturer;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -33,6 +34,7 @@ public class WebRTCManager implements ISignalingEvents {
     private String _roomId;
     private int _mediaType;
     private boolean _videoEnable;
+    public VideoCapturer screenCapture;
 
 
     private IConnectEvent _connectEvent;
@@ -145,6 +147,7 @@ public class WebRTCManager implements ISignalingEvents {
     public void onJoinToRoom(ArrayList<String> connections, String myId) {
         handler.post(() -> {
             if (_peerHelper != null) {
+                _peerHelper.captureAndroid = screenCapture;
                 _peerHelper.onJoinToRoom(connections, myId, _videoEnable, _mediaType);
                 if (_mediaType == MediaType.TYPE_VIDEO || _mediaType == MediaType.TYPE_MEETING) {
                     toggleSpeaker(true);

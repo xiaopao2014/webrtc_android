@@ -39,7 +39,7 @@ public class WebrtcUtil {
     // private static String WSS = "ws://192.168.1.138:3000";
 
     // one to one
-    public static void callSingle(Activity activity, String wss, String roomId, boolean videoEnable) {
+    public static void callSingle(Activity activity, String wss, String roomId, boolean videoEnable, boolean captureEnable) {
         if (TextUtils.isEmpty(wss)) {
             wss = WSS;
         }
@@ -54,7 +54,11 @@ public class WebrtcUtil {
 
             }
         });
-        WebRTCManager.getInstance().connect(videoEnable ? MediaType.TYPE_VIDEO : MediaType.TYPE_AUDIO, roomId);
+        if (captureEnable) {
+            WebRTCManager.getInstance().connect(MediaType.TYPE_CAPTURE, roomId);
+        } else {
+            WebRTCManager.getInstance().connect(videoEnable ? MediaType.TYPE_VIDEO : MediaType.TYPE_AUDIO, roomId);
+        }
     }
 
     // Videoconferencing
