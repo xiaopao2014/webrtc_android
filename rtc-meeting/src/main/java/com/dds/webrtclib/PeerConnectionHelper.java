@@ -202,10 +202,6 @@ public class PeerConnectionHelper {
         }
 
 
-//        if (viewCallback != null) {
-//            viewCallback.onSetLocalStream(_localStream, _myId);
-//        }
-
     }
 
     // 创建所有连接
@@ -219,12 +215,7 @@ public class PeerConnectionHelper {
     // 为所有连接添加流
     private void addStreams() {
         Log.v(TAG, "为所有连接添加流:" + _connectionPeerDic.size());
-        new Handler(Looper.getMainLooper()).post(new Runnable() {
-            @Override
-            public void run() {
-                Toast.makeText(_context,"addStreams:"+_connectionPeerDic.size(),Toast.LENGTH_LONG).show();
-            }
-        });
+        new Handler(Looper.getMainLooper()).post(() -> Toast.makeText(_context, "addStreams:" + _connectionPeerDic.size(), Toast.LENGTH_LONG).show());
         for (Map.Entry<String, Peer> entry : _connectionPeerDic.entrySet()) {
             if (_localStream == null) {
                 createLocalStream();
