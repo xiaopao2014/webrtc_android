@@ -96,7 +96,7 @@ public class ChatRoomActivity extends AppCompatActivity implements IViewCallback
 
     private void startCall() {
         manager = WebRTCManager.getInstance();
-        manager.setCallback(this);
+//        manager.setCallback(this);
 
         if (!PermissionUtil.isNeedRequestPermission(ChatRoomActivity.this)) {
             manager.joinRoom(getApplicationContext(), rootEglBase);

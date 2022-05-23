@@ -7,8 +7,6 @@ import android.util.Log;
 
 import androidx.annotation.Nullable;
 
-import com.dds.webrtclib.bean.MediaType;
-import com.dds.webrtclib.bean.MyIceServer;
 import com.dds.webrtclib.ws.IWebSocket;
 
 import org.webrtc.AudioSource;
@@ -39,15 +37,8 @@ import org.webrtc.VideoTrack;
 import org.webrtc.audio.JavaAudioDeviceModule;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 
 public class PeerConnectionHelper {
@@ -57,7 +48,6 @@ public class PeerConnectionHelper {
     public static final int VIDEO_RESOLUTION_WIDTH = 1920;
     public static final int VIDEO_RESOLUTION_HEIGHT = 1080;
     public static final int FPS = 10;
-    public static final String VIDEO_CODEC_H264 = "H264";
     public static final String VIDEO_TRACK_ID = "ARDAMSv0";
     public static final String AUDIO_TRACK_ID = "ARDAMSa0";
 
@@ -95,25 +85,12 @@ public class PeerConnectionHelper {
     @Nullable
     private SurfaceTextureHelper surfaceTextureHelper;
 
-    private final ExecutorService executor;
-
-    public PeerConnectionHelper(IWebSocket webSocket, MyIceServer[] iceServers) {
+    public PeerConnectionHelper(IWebSocket webSocket) {
         this._connectionPeerDic = new HashMap<>();
         this._connectionIdArray = new ArrayList<>();
         this.ICEServers = new ArrayList<>();
 
         _webSocket = webSocket;
-        executor = Executors.newSingleThreadExecutor();
-        if (iceServers != null) {
-            for (MyIceServer myIceServer : iceServers) {
-                PeerConnection.IceServer iceServer = PeerConnection.IceServer
-                        .builder(myIceServer.uri)
-                        .setUsername(myIceServer.username)
-                        .setPassword(myIceServer.password)
-                        .createIceServer();
-                ICEServers.add(iceServer);
-            }
-        }
     }
 
     // 设置界面的回调
@@ -132,87 +109,66 @@ public class PeerConnectionHelper {
     public void onJoinToRoom(ArrayList<String> connections, String myId, boolean isVideoEnable, int mediaType) {
         videoEnable = isVideoEnable;
         _mediaType = mediaType;
-        executor.execute(() -> {
-            _connectionIdArray.addAll(connections);
-            _myId = myId;
-            if (_factory == null) {
-                _factory = createConnectionFactory();
-            }
-            if (_localStream == null) {
-                createLocalStream();
-            }
+        _connectionIdArray.addAll(connections);
+        _myId = myId;
+        if (_factory == null) {
+            _factory = createConnectionFactory();
+        }
+        if (_localStream == null) {
+            createLocalStream();
+        }
 
-            createPeerConnections();
-            addStreams();
-            createOffers();
-        });
+        createPeerConnections();
+        addStreams();
+        createOffers();
 
     }
 
     public void onRemoteJoinToRoom(String socketId) {
-        executor.execute(() -> {
-            if (_localStream == null) {
-                createLocalStream();
-            }
-            try {
-                Peer mPeer = new Peer(socketId);
-                mPeer.pc.addStream(_localStream);
-                _connectionIdArray.add(socketId);
-                _connectionPeerDic.put(socketId, mPeer);
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        });
-
+        if (_localStream == null) {
+            createLocalStream();
+        }
+        try {
+            Peer mPeer = new Peer(socketId);
+            mPeer.pc.addStream(_localStream);
+            _connectionIdArray.add(socketId);
+            _connectionPeerDic.put(socketId, mPeer);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     public void onRemoteIceCandidate(String socketId, IceCandidate iceCandidate) {
-        executor.execute(() -> {
-            Peer peer = _connectionPeerDic.get(socketId);
-            if (peer != null) {
-                peer.pc.addIceCandidate(iceCandidate);
-            }
-        });
-
+        Peer peer = _connectionPeerDic.get(socketId);
+        if (peer != null) {
+            peer.pc.addIceCandidate(iceCandidate);
+        }
     }
 
-    public void onRemoteIceCandidateRemove(String socketId, List<IceCandidate> iceCandidates) {
-        // todo 移除
-        executor.execute(() -> Log.d(TAG, "send onRemoteIceCandidateRemove"));
-
-    }
 
     public void onRemoteOutRoom(String socketId) {
-        executor.execute(() -> closePeerConnection(socketId));
-
+        closePeerConnection(socketId);
     }
 
     public void onReceiveOffer(String socketId, String description) {
-        executor.execute(() -> {
-            _role = Role.Receiver;
-            Peer mPeer = _connectionPeerDic.get(socketId);
-            String sessionDescription = description;
-            if (videoEnable) {
-                sessionDescription = preferCodec(description, VIDEO_CODEC_H264, false);
-            }
 
-            SessionDescription sdp = new SessionDescription(SessionDescription.Type.OFFER, sessionDescription);
-
-            if (mPeer != null) {
-                mPeer.pc.setRemoteDescription(mPeer, sdp);
-            }
-        });
+        _role = Role.Receiver;
+        Peer mPeer = _connectionPeerDic.get(socketId);
+        String sessionDescription = description;
+        SessionDescription sdp = new SessionDescription(SessionDescription.Type.OFFER, sessionDescription);
+        if (mPeer != null) {
+            mPeer.pc.setRemoteDescription(mPeer, sdp);
+        }
 
     }
 
     public void onReceiverAnswer(String socketId, String sdp) {
-        executor.execute(() -> {
-            Peer mPeer = _connectionPeerDic.get(socketId);
-            SessionDescription sessionDescription = new SessionDescription(SessionDescription.Type.ANSWER, sdp);
-            if (mPeer != null) {
-                mPeer.pc.setRemoteDescription(mPeer, sessionDescription);
-            }
-        });
+
+        Peer mPeer = _connectionPeerDic.get(socketId);
+        SessionDescription sessionDescription = new SessionDescription(SessionDescription.Type.ANSWER, sdp);
+        if (mPeer != null) {
+            mPeer.pc.setRemoteDescription(mPeer, sessionDescription);
+        }
 
     }
 
@@ -244,9 +200,9 @@ public class PeerConnectionHelper {
     private void createLocalStream() {
         _localStream = _factory.createLocalMediaStream("ARDAMS");
         // 音频
-        audioSource = _factory.createAudioSource(createAudioConstraints());
-        _localAudioTrack = _factory.createAudioTrack(AUDIO_TRACK_ID, audioSource);
-        _localStream.addTrack(_localAudioTrack);
+//        audioSource = _factory.createAudioSource(createAudioConstraints());
+//        _localAudioTrack = _factory.createAudioTrack(AUDIO_TRACK_ID, audioSource);
+//        _localStream.addTrack(_localAudioTrack);
 
         if (videoEnable) {
             //创建需要传入设备的名称
@@ -255,9 +211,6 @@ public class PeerConnectionHelper {
             // 视频
             surfaceTextureHelper = SurfaceTextureHelper.create("CaptureThread", _rootEglBase.getEglBaseContext());
             videoSource = _factory.createVideoSource(captureAndroid.isScreencast());
-            if (_mediaType == MediaType.TYPE_MEETING) {
-                // videoSource.adaptOutputFormat(200, 200, 15);
-            }
             captureAndroid.initialize(surfaceTextureHelper, _context, videoSource.getCapturerObserver());
             captureAndroid.startCapture(VIDEO_RESOLUTION_WIDTH, VIDEO_RESOLUTION_HEIGHT, FPS);
             _localVideoTrack = _factory.createVideoTrack(VIDEO_TRACK_ID, videoSource);
@@ -273,9 +226,9 @@ public class PeerConnectionHelper {
 
     // 创建所有连接
     private void createPeerConnections() {
-        for (Object str : _connectionIdArray) {
-            Peer peer = new Peer((String) str);
-            _connectionPeerDic.put((String) str, peer);
+        for (String str : _connectionIdArray) {
+            Peer peer = new Peer(str);
+            _connectionPeerDic.put(str, peer);
         }
     }
 
@@ -352,55 +305,49 @@ public class PeerConnectionHelper {
         if (viewCallback != null) {
             viewCallback = null;
         }
-        executor.execute(() -> {
-            ArrayList myCopy;
-            myCopy = (ArrayList) _connectionIdArray.clone();
-            for (Object Id : myCopy) {
-                closePeerConnection((String) Id);
+        ArrayList myCopy;
+        myCopy = (ArrayList) _connectionIdArray.clone();
+        for (Object Id : myCopy) {
+            closePeerConnection((String) Id);
+        }
+        if (_connectionIdArray != null) {
+            _connectionIdArray.clear();
+        }
+        if (audioSource != null) {
+            audioSource.dispose();
+            audioSource = null;
+        }
+
+        if (videoSource != null) {
+            videoSource.dispose();
+            videoSource = null;
+        }
+
+        if (captureAndroid != null) {
+            try {
+                captureAndroid.stopCapture();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
             }
-            if (_connectionIdArray != null) {
-                _connectionIdArray.clear();
-            }
-            if (audioSource != null) {
-                audioSource.dispose();
-                audioSource = null;
-            }
+            captureAndroid.dispose();
+            captureAndroid = null;
+        }
 
-            if (videoSource != null) {
-                videoSource.dispose();
-                videoSource = null;
-            }
-
-            if (captureAndroid != null) {
-                try {
-                    captureAndroid.stopCapture();
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
-                captureAndroid.dispose();
-                captureAndroid = null;
-            }
-
-            if (surfaceTextureHelper != null) {
-                surfaceTextureHelper.dispose();
-                surfaceTextureHelper = null;
-            }
+        if (surfaceTextureHelper != null) {
+            surfaceTextureHelper.dispose();
+            surfaceTextureHelper = null;
+        }
 
 
-            if (_factory != null) {
-                _factory.dispose();
-                _factory = null;
-            }
+        if (_factory != null) {
+            _factory.dispose();
+            _factory = null;
+        }
 
-            if (_webSocket != null) {
-                _webSocket.close();
-                _webSocket = null;
-            }
-
-
-        });
-
-
+        if (_webSocket != null) {
+            _webSocket.close();
+            _webSocket = null;
+        }
     }
 
 
@@ -477,8 +424,8 @@ public class PeerConnectionHelper {
 
     //**************************************内部类******************************************/
     private class Peer implements SdpObserver, PeerConnection.Observer {
-        private PeerConnection pc;
-        private String socketId;
+        private final PeerConnection pc;
+        private final String socketId;
 
         public Peer(String socketId) {
             this.pc = createPeerConnection();
@@ -529,16 +476,10 @@ public class PeerConnectionHelper {
 
         @Override
         public void onAddStream(MediaStream mediaStream) {
-            if (viewCallback != null) {
-                viewCallback.onAddRemoteStream(mediaStream, socketId);
-            }
         }
 
         @Override
         public void onRemoveStream(MediaStream mediaStream) {
-            if (viewCallback != null) {
-                viewCallback.onCloseWithId(socketId);
-            }
         }
 
         @Override
@@ -570,10 +511,6 @@ public class PeerConnectionHelper {
             //设置本地的SDP
 
             String sdpDescription = origSdp.description;
-            if (videoEnable) {
-                sdpDescription = preferCodec(sdpDescription, VIDEO_CODEC_H264, false);
-            }
-
             final SessionDescription sdp = new SessionDescription(origSdp.type, sdpDescription);
 
 
@@ -630,87 +567,6 @@ public class PeerConnectionHelper {
 
     }
 
-
-    // ===================================替换编码方式优先级========================================
-    private static String preferCodec(String sdpDescription, String codec, boolean isAudio) {
-        final String[] lines = sdpDescription.split("\r\n");
-        final int mLineIndex = findMediaDescriptionLine(isAudio, lines);
-        if (mLineIndex == -1) {
-            Log.w(TAG, "No mediaDescription line, so can't prefer " + codec);
-            return sdpDescription;
-        }
-        // A list with all the payload types with name |codec|. The payload types are integers in the
-        // range 96-127, but they are stored as strings here.
-        final List<String> codecPayloadTypes = new ArrayList<>();
-        // a=rtpmap:<payload type> <encoding name>/<clock rate> [/<encoding parameters>]
-        final Pattern codecPattern = Pattern.compile("^a=rtpmap:(\\d+) " + codec + "(/\\d+)+[\r]?$");
-        for (String line : lines) {
-            Matcher codecMatcher = codecPattern.matcher(line);
-            if (codecMatcher.matches()) {
-                codecPayloadTypes.add(codecMatcher.group(1));
-            }
-        }
-        if (codecPayloadTypes.isEmpty()) {
-            Log.w(TAG, "No payload types with name " + codec);
-            return sdpDescription;
-        }
-
-        final String newMLine = movePayloadTypesToFront(codecPayloadTypes, lines[mLineIndex]);
-        if (newMLine == null) {
-            return sdpDescription;
-        }
-        Log.d(TAG, "Change media description from: " + lines[mLineIndex] + " to " + newMLine);
-        lines[mLineIndex] = newMLine;
-        return joinString(Arrays.asList(lines), "\r\n", true /* delimiterAtEnd */);
-    }
-
-    private static int findMediaDescriptionLine(boolean isAudio, String[] sdpLines) {
-        final String mediaDescription = isAudio ? "m=audio " : "m=video ";
-        for (int i = 0; i < sdpLines.length; ++i) {
-            if (sdpLines[i].startsWith(mediaDescription)) {
-                return i;
-            }
-        }
-        return -1;
-    }
-
-    private static @Nullable
-    String movePayloadTypesToFront(
-            List<String> preferredPayloadTypes, String mLine) {
-        // The format of the media description line should be: m=<media> <port> <proto> <fmt> ...
-        final List<String> origLineParts = Arrays.asList(mLine.split(" "));
-        if (origLineParts.size() <= 3) {
-            Log.e(TAG, "Wrong SDP media description format: " + mLine);
-            return null;
-        }
-        final List<String> header = origLineParts.subList(0, 3);
-        final List<String> unpreferredPayloadTypes =
-                new ArrayList<>(origLineParts.subList(3, origLineParts.size()));
-        unpreferredPayloadTypes.removeAll(preferredPayloadTypes);
-        // Reconstruct the line with |preferredPayloadTypes| moved to the beginning of the payload
-        // types.
-        final List<String> newLineParts = new ArrayList<>();
-        newLineParts.addAll(header);
-        newLineParts.addAll(preferredPayloadTypes);
-        newLineParts.addAll(unpreferredPayloadTypes);
-        return joinString(newLineParts, " ", false /* delimiterAtEnd */);
-    }
-
-    private static String joinString(
-            Iterable<? extends CharSequence> s, String delimiter, boolean delimiterAtEnd) {
-        Iterator<? extends CharSequence> iter = s.iterator();
-        if (!iter.hasNext()) {
-            return "";
-        }
-        StringBuilder buffer = new StringBuilder(iter.next());
-        while (iter.hasNext()) {
-            buffer.append(delimiter).append(iter.next());
-        }
-        if (delimiterAtEnd) {
-            buffer.append(delimiter);
-        }
-        return buffer.toString();
-    }
 
 }
 

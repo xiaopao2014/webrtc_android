@@ -10,6 +10,8 @@ import com.dds.webrtclib.ui.ChatRoomActivity;
 import com.dds.webrtclib.ui.ChatSingleActivity;
 import com.dds.webrtclib.ws.IConnectEvent;
 
+import org.webrtc.EglBase;
+
 /**
  * Created by dds on 2019/1/7.
  * android_shuai@163.com
@@ -46,7 +48,8 @@ public class WebrtcUtil {
         WebRTCManager.getInstance().init(wss, iceServers, new IConnectEvent() {
             @Override
             public void onSuccess() {
-                ChatSingleActivity.openActivity(activity, videoEnable);
+                WebRTCManager.getInstance().joinRoom(activity, EglBase.create());
+//                ChatSingleActivity.openActivity(activity, videoEnable);
             }
 
             @Override
@@ -69,7 +72,7 @@ public class WebrtcUtil {
         WebRTCManager.getInstance().init(wss, iceServers, new IConnectEvent() {
             @Override
             public void onSuccess() {
-                ChatRoomActivity.openActivity(activity);
+                WebRTCManager.getInstance().joinRoom(activity, EglBase.create());
             }
 
             @Override
