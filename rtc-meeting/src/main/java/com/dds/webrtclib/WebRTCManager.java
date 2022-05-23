@@ -91,21 +91,15 @@ public class WebRTCManager implements ISignalingEvents {
     }
 
     public void switchCamera() {
-        if (_peerHelper != null) {
-            _peerHelper.switchCamera();
-        }
+
     }
 
     public void toggleMute(boolean enable) {
-        if (_peerHelper != null) {
-            _peerHelper.toggleMute(enable);
-        }
+
     }
 
     public void toggleSpeaker(boolean enable) {
-        if (_peerHelper != null) {
-            _peerHelper.toggleSpeaker(enable);
-        }
+
     }
 
     public void exitRoom() {

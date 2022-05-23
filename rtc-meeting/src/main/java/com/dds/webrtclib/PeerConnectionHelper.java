@@ -2,19 +2,16 @@ package com.dds.webrtclib;
 
 
 import android.content.Context;
-import android.media.AudioManager;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
+import android.widget.Toast;
 
 import androidx.annotation.Nullable;
 
 import com.dds.webrtclib.ws.IWebSocket;
 
 import org.webrtc.AudioSource;
-import org.webrtc.AudioTrack;
-import org.webrtc.Camera1Enumerator;
-import org.webrtc.Camera2Enumerator;
-import org.webrtc.CameraEnumerator;
-import org.webrtc.CameraVideoCapturer;
 import org.webrtc.DataChannel;
 import org.webrtc.DefaultVideoDecoderFactory;
 import org.webrtc.DefaultVideoEncoderFactory;
@@ -49,12 +46,9 @@ public class PeerConnectionHelper {
     public static final int VIDEO_RESOLUTION_HEIGHT = 1080;
     public static final int FPS = 10;
     public static final String VIDEO_TRACK_ID = "ARDAMSv0";
-    public static final String AUDIO_TRACK_ID = "ARDAMSa0";
-
     public PeerConnectionFactory _factory;
     public MediaStream _localStream;
     public VideoTrack _localVideoTrack;
-    public AudioTrack _localAudioTrack;
     public VideoCapturer captureAndroid;
     public VideoSource videoSource;
     public AudioSource audioSource;
@@ -68,8 +62,6 @@ public class PeerConnectionHelper {
     public ArrayList<PeerConnection.IceServer> ICEServers;
     public boolean videoEnable;
     public int _mediaType;
-
-    private AudioManager mAudioManager;
 
 
     enum Role {Caller, Receiver,}
@@ -103,7 +95,6 @@ public class PeerConnectionHelper {
     public void initContext(Context context, EglBase eglBase) {
         _context = context;
         _rootEglBase = eglBase;
-        mAudioManager = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
     }
 
     public void onJoinToRoom(ArrayList<String> connections, String myId, boolean isVideoEnable, int mediaType) {
@@ -199,15 +190,8 @@ public class PeerConnectionHelper {
     // 创建本地流
     private void createLocalStream() {
         _localStream = _factory.createLocalMediaStream("ARDAMS");
-        // 音频
-//        audioSource = _factory.createAudioSource(createAudioConstraints());
-//        _localAudioTrack = _factory.createAudioTrack(AUDIO_TRACK_ID, audioSource);
-//        _localStream.addTrack(_localAudioTrack);
 
         if (videoEnable) {
-            //创建需要传入设备的名称
-            if (captureAndroid == null)
-                captureAndroid = createVideoCapture();
             // 视频
             surfaceTextureHelper = SurfaceTextureHelper.create("CaptureThread", _rootEglBase.getEglBaseContext());
             videoSource = _factory.createVideoSource(captureAndroid.isScreencast());
@@ -218,9 +202,9 @@ public class PeerConnectionHelper {
         }
 
 
-        if (viewCallback != null) {
-            viewCallback.onSetLocalStream(_localStream, _myId);
-        }
+//        if (viewCallback != null) {
+//            viewCallback.onSetLocalStream(_localStream, _myId);
+//        }
 
     }
 
@@ -234,7 +218,13 @@ public class PeerConnectionHelper {
 
     // 为所有连接添加流
     private void addStreams() {
-        Log.v(TAG, "为所有连接添加流");
+        Log.v(TAG, "为所有连接添加流:" + _connectionPeerDic.size());
+        new Handler(Looper.getMainLooper()).post(new Runnable() {
+            @Override
+            public void run() {
+                Toast.makeText(_context,"addStreams:"+_connectionPeerDic.size(),Toast.LENGTH_LONG).show();
+            }
+        });
         for (Map.Entry<String, Peer> entry : _connectionPeerDic.entrySet()) {
             if (_localStream == null) {
                 createLocalStream();
@@ -272,33 +262,6 @@ public class PeerConnectionHelper {
 
     }
 
-
-    //**************************************逻辑控制**************************************
-    // 调整摄像头前置后置
-    public void switchCamera() {
-        if (captureAndroid == null) return;
-        if (captureAndroid instanceof CameraVideoCapturer) {
-            CameraVideoCapturer cameraVideoCapturer = (CameraVideoCapturer) captureAndroid;
-            cameraVideoCapturer.switchCamera(null);
-        } else {
-            Log.d(TAG, "Will not switch camera, video caputurer is not a camera");
-        }
-
-    }
-
-    // 设置自己静音
-    public void toggleMute(boolean enable) {
-        if (_localAudioTrack != null) {
-            _localAudioTrack.setEnabled(enable);
-        }
-    }
-
-    public void toggleSpeaker(boolean enable) {
-        if (mAudioManager != null) {
-            mAudioManager.setSpeakerphoneOn(enable);
-        }
-
-    }
 
     // 退出房间
     public void exitRoom() {
@@ -350,68 +313,6 @@ public class PeerConnectionHelper {
         }
     }
 
-
-    private VideoCapturer createVideoCapture() {
-        VideoCapturer videoCapturer;
-        if (useCamera2()) {
-            videoCapturer = createCameraCapture(new Camera2Enumerator(_context));
-        } else {
-            videoCapturer = createCameraCapture(new Camera1Enumerator(true));
-        }
-        return videoCapturer;
-    }
-
-    private VideoCapturer createCameraCapture(CameraEnumerator enumerator) {
-        final String[] deviceNames = enumerator.getDeviceNames();
-
-        // First, try to find front facing camera
-        for (String deviceName : deviceNames) {
-            if (enumerator.isFrontFacing(deviceName)) {
-                VideoCapturer videoCapturer = enumerator.createCapturer(deviceName, null);
-
-                if (videoCapturer != null) {
-                    return videoCapturer;
-                }
-            }
-        }
-
-        // Front facing camera not found, try something else
-        for (String deviceName : deviceNames) {
-            if (!enumerator.isFrontFacing(deviceName)) {
-                VideoCapturer videoCapturer = enumerator.createCapturer(deviceName, null);
-
-                if (videoCapturer != null) {
-                    return videoCapturer;
-                }
-            }
-        }
-
-        return null;
-    }
-
-    private boolean useCamera2() {
-        return Camera2Enumerator.isSupported(_context);
-    }
-
-
-    //**************************************各种约束******************************************/
-    private static final String AUDIO_ECHO_CANCELLATION_CONSTRAINT = "googEchoCancellation";
-    private static final String AUDIO_AUTO_GAIN_CONTROL_CONSTRAINT = "googAutoGainControl";
-    private static final String AUDIO_HIGH_PASS_FILTER_CONSTRAINT = "googHighpassFilter";
-    private static final String AUDIO_NOISE_SUPPRESSION_CONSTRAINT = "googNoiseSuppression";
-
-    private MediaConstraints createAudioConstraints() {
-        MediaConstraints audioConstraints = new MediaConstraints();
-        audioConstraints.mandatory.add(
-                new MediaConstraints.KeyValuePair(AUDIO_ECHO_CANCELLATION_CONSTRAINT, "true"));
-        audioConstraints.mandatory.add(
-                new MediaConstraints.KeyValuePair(AUDIO_AUTO_GAIN_CONTROL_CONSTRAINT, "false"));
-        audioConstraints.mandatory.add(
-                new MediaConstraints.KeyValuePair(AUDIO_HIGH_PASS_FILTER_CONSTRAINT, "true"));
-        audioConstraints.mandatory.add(
-                new MediaConstraints.KeyValuePair(AUDIO_NOISE_SUPPRESSION_CONSTRAINT, "true"));
-        return audioConstraints;
-    }
 
     private MediaConstraints offerOrAnswerConstraint() {
         MediaConstraints mediaConstraints = new MediaConstraints();
