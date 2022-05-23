@@ -85,10 +85,6 @@ public class PeerConnectionHelper {
         _webSocket = webSocket;
     }
 
-    // 设置界面的回调
-    public void setViewCallback(IViewCallback callback) {
-        viewCallback = callback;
-    }
 
     // ===================================webSocket回调信息=======================================
 

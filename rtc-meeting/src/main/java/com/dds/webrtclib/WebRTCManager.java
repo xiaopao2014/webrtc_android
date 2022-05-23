@@ -74,9 +74,7 @@ public class WebRTCManager implements ISignalingEvents {
 
 
     public void setCallback(IViewCallback callback) {
-        if (_peerHelper != null) {
-            _peerHelper.setViewCallback(callback);
-        }
+
     }
 
     //===================================控制功能==============================================
